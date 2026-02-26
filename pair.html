@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZANTA-MD | Pairing</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        body { background: #000; height: 100vh; overflow: hidden; display: flex; justify-content: center; align-items: center; position: relative; }
+
+        /* ✨ Light Blue Space Background */
+        .stars-container { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; 
+            background: radial-gradient(circle at center, #0a1a2d 0%, #000000 100%); 
+        }
+        .star { position: absolute; background: #b6e3ff; border-radius: 50%; opacity: 0.6; animation: move linear infinite; }
+        @keyframes move { from { transform: translateY(100vh); opacity: 0; } to { transform: translateY(-10vh); opacity: 0.8; } }
+
+        /* 💎 Ultra Glass Box */
+        .glass-box {
+            position: relative;
+            z-index: 10;
+            width: 90%;
+            max-width: 400px;
+            padding: 50px 30px;
+            background: rgba(0, 212, 255, 0.03); 
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(182, 227, 255, 0.2);
+            border-radius: 40px;
+            box-shadow: 0 15px 35px rgba(0, 191, 255, 0.15);
+            text-align: center;
+            color: #fff;
+        }
+
+        h2 {
+            font-size: 2rem;
+            color: #00d4ff;
+            text-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        p { font-size: 0.85rem; color: rgba(255, 255, 255, 0.6); margin-bottom: 25px; }
+
+        /* ⌨️ Input Styling */
+        input {
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 1rem;
+            text-align: center;
+            outline: none;
+            transition: 0.3s;
+        }
+        input:focus {
+            border-color: #00d4ff;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* 🔘 Button Styling */
+        button {
+            width: 100%;
+            padding: 15px;
+            background: #00d4ff;
+            color: #000;
+            border: none;
+            border-radius: 15px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.4s;
+            box-shadow: 0 5px 15px rgba(0, 212, 255, 0.3);
+        }
+        button:hover {
+            transform: scale(1.03);
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.6);
+            letter-spacing: 1px;
+        }
+
+        /* 🔢 Code Display */
+        #code {
+            margin-top: 25px;
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #fff;
+            text-shadow: 0 0 10px #00d4ff;
+            letter-spacing: 5px;
+            min-height: 40px;
+        }
+
+        .home-link {
+            display: inline-block;
+            margin-top: 30px;
+            color: #00d4ff;
+            text-decoration: none;
+            font-size: 0.8rem;
+            border-bottom: 1px solid transparent;
+            transition: 0.3s;
+            opacity: 0.7;
+        }
+        .home-link:hover { opacity: 1; border-color: #00d4ff; }
+
+    </style>
+</head>
+<body>
+
+    <div class="stars-container" id="stars"></div>
+
+    <div class="glass-box">
+        <h2>ZANTA-MD</h2>
+        <p>Enter your number with country code</p>
+        
+        <input type="number" id="num" placeholder="e.g. 94743404814">
+        
+        <button onclick="getPair()">GET PAIR CODE</button>
+        
+        <div id="code"></div>
+
+        <a href="index.html" class="home-link">← Back to Home</a>
+    </div>
+
+    <audio id="bgMusic" loop>
+        <source src="https://files.catbox.moe/5zx7hg.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        // Stars Logic
+        const starsContainer = document.getElementById('stars');
+        for (let i = 0; i < 80; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            const size = Math.random() * 2.5 + 'px';
+            star.style.width = size; star.style.height = size;
+            star.style.left = Math.random() * 100 + '%';
+            star.style.top = Math.random() * 100 + '%';
+            star.style.animationDuration = Math.random() * 5 + 3 + 's';
+            starsContainer.appendChild(star);
+        }
+
+        // Pairing Logic (As per your request)
+        async function getPair() {
+            const num = document.getElementById('num').value;
+            const codeDiv = document.getElementById('code');
+            if(!num) return alert("Please enter your number!");
+            
+            codeDiv.innerText = "WAITING...";
+            codeDiv.style.fontSize = "1rem";
+            codeDiv.style.letterSpacing = "1px";
+
+            try {
+                const res = await fetch(`/code?number=${num}`);
+                const data = await res.json();
+                
+                codeDiv.style.fontSize = "1.8rem";
+                codeDiv.style.letterSpacing = "5px";
+                codeDiv.innerText = data.code || "ERROR";
+            } catch (error) {
+                codeDiv.innerText = "ERROR";
+            }
+        }
+
+        // Music Trigger
+        window.addEventListener('click', () => {
+            document.getElementById('bgMusic').play();
+        }, { once: true });
+    </script>
+</body>
+</html>

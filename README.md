@@ -1,1 +1,1 @@
-# Pair2
+# ZANTA-MINI-PAIR
