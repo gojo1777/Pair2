@@ -1,6 +1,6 @@
 const express = require("express");
 const fs = require("fs");
-const { exec } = require("child_process");
+const path = require("path");
 const mongoose = require("mongoose");
 let router = express.Router();
 const pino = require("pino");
@@ -13,7 +13,7 @@ const {
   jidNormalizedUser,
 } = require("@whiskeysockets/baileys");
 
-// MongoDB Session Schema
+// MongoDB Session Schema (ඔබේ දැනට පවතින Schema එක)
 const SessionSchema = new mongoose.Schema({
   number: { type: String, required: true, unique: true },
   creds: { type: Object, required: true },
@@ -21,108 +21,112 @@ const SessionSchema = new mongoose.Schema({
 });
 const Session = mongoose.models.Session || mongoose.model("Session", SessionSchema);
 
-// ✅ බලෙන්ම මකන්න පුළුවන් වෙන්න හදපු removeFile එක
+// ෆයිල් ඉවත් කිරීමේ function එක
 function removeFile(FilePath) {
   if (!fs.existsSync(FilePath)) return false;
-  fs.rmSync(FilePath, { recursive: true, force: true });
+  try {
+    fs.rmSync(FilePath, { recursive: true, force: true });
+  } catch (e) {
+    console.error("File remove error:", e);
+  }
 }
 
 router.get("/", async (req, res) => {
   let num = req.query.number;
+  if (!num) return res.status(400).send({ error: "Please provide a phone number" });
+
+  const sessionPath = path.join(__dirname, '../session');
+
   async function RobinPair() {
-    // එක් එක් රික්වෙස්ට් එකට ෆයිල් එකක් හැදෙනවා
-    const { state, saveCreds } = await useMultiFileAuthState(`./session`);
+    // 1. කලින් තිබූ session එක සම්පූර්ණයෙන්ම මකා අලුතින් ආරම්භ කරයි
+    removeFile(sessionPath);
+    if (!fs.existsSync(sessionPath)) fs.mkdirSync(sessionPath, { recursive: true });
+
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+
     try {
       let RobinPairWeb = makeWASocket({
         auth: {
           creds: state.creds,
-          keys: makeCacheableSignalKeyStore(
-            state.keys,
-            pino({ level: "fatal" }).child({ level: "fatal" })
-          ),
+          keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
         },
         printQRInTerminal: false,
-        logger: pino({ level: "fatal" }).child({ level: "fatal" }),
-        browser: Browsers.macOS("Safari"), // ඔයා මුලින් දුන්න එකමයි
+        logger: pino({ level: "fatal" }),
+        // Railway වැනි සර්වර් වලට වඩාත් ගැලපෙන Browser එකක් භාවිතා කිරීම
+        browser: Browsers.ubuntu("Chrome"),
       });
 
+      // 2. වැදගත්: Socket එක 'Open' වී Pairing Code එක ඉල්ලීමට පෙර තත්පර 5ක් රැඳී සිටීම
       if (!RobinPairWeb.authState.creds.registered) {
-        await delay(1500);
+        await delay(5000); 
         num = num.replace(/[^0-9]/g, "");
-        const code = await RobinPairWeb.requestPairingCode(num);
-        if (!res.headersSent) {
-          await res.send({ code });
+
+        try {
+          const code = await RobinPairWeb.requestPairingCode(num);
+          if (!res.headersSent) {
+            await res.send({ code });
+          }
+        } catch (pairErr) {
+          console.error("Pairing Code Error:", pairErr);
+          if (!res.headersSent) {
+            res.status(500).send({ error: "Connection closed by WhatsApp. Please refresh and try again." });
+          }
+          return;
         }
       }
 
       RobinPairWeb.ev.on("creds.update", saveCreds);
+
       RobinPairWeb.ev.on("connection.update", async (s) => {
         const { connection, lastDisconnect } = s;
+
         if (connection === "open") {
           try {
-            await delay(10000);
-            const auth_path = "./session/creds.json";
+            await delay(5000); // creds.json එක ලිවීමට කාලය ලබා දෙන්න
             const user_jid = jidNormalizedUser(RobinPairWeb.user.id);
-
-            // 1. MongoDB එකට සේව් කිරීම
-            const session_json = JSON.parse(fs.readFileSync(auth_path, "utf8"));
+            
+            // Database එකට session එක සේව් කිරීම (උදාහරණයක් ලෙස)
             await Session.findOneAndUpdate(
-              { number: user_jid },
-              {
-                number: user_jid,
-                creds: session_json
-              },
+              { number: num },
+              { creds: state.creds },
               { upsert: true }
             );
 
-            console.log(`✅ Session securely stored in MongoDB for ${user_jid}`);
+            const success_msg = `╔════════════════════╗\n  ✨ *ZANTA-MD CONNECTED* ✨\n╚════════════════════╝\n\n*🚀 Status:* Successfully Linked ✅\n*👤 User:* ${user_jid.split('@')[0]}\n\n> ඔබේ දත්ත ආරක්ෂිතව තැන්පත් කරන ලදී.\n\n*ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴢᴀɴᴛᴀ ᴏꜰᴄ* 🧬`;
 
-            // 2. මැසේජ් එක (Plain Text Only - Error නොවී යන්න)
-            const success_msg = `╔════════════════════╗
-  ✨ *ZANTA-MD CONNECTED* ✨
-╚════════════════════╝
-
-*🚀 Status:* Successfully Linked ✅
-*👤 User:* ${user_jid.split('@')[0]}
-*🗄️ Database:* MongoDB Secured 🔒
-
-> ඔබේ දත්ත අපගේ Database එකේ ආරක්ෂිතව තැන්පත් කරන ලදී. දැන් බොට් ස්වයංක්‍රීයව ක්‍රියාත්මක වනු ඇත.
-
-*📢 Join our official channel for updates:*
-https://whatsapp.com/channel/0029VbBc42s84OmJ3V1RKd2B
-
-*ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴢᴀɴᴛᴀ ᴏꜰᴄ* 🧬`;
-
-            // ❌ Image සහ Ad Card එක අයින් කළා, Text විතරක් යැවෙනවා
             await RobinPairWeb.sendMessage(user_jid, { text: success_msg });
+            console.log(`✅ Session saved for ${user_jid}`);
 
           } catch (e) {
-            console.error("❌ Database or Messaging Error:", e);
+            console.error("❌ Open Connection Logic Error:", e);
           } finally {
-            // 3. Cleanup & Restart
-            await delay(2000);
-            removeFile("./session");
-            console.log("♻️ Cleanup Done: Local session files cleared.");
-            
-            // 🚀 Render වලදී "Waiting" වෙන්නේ නැතුව ඉන්න process එක Restart කරනවා
-            process.exit(0); 
+            await delay(3000);
+            removeFile(sessionPath);
+            // Process එක restart කිරීම (සර්වර් එක crash නොවී පවත්වා ගැනීමට)
+            // process.exit(0); 
           }
-
-        } else if (
-          connection === "close" &&
-          lastDisconnect &&
-          lastDisconnect.error &&
-          lastDisconnect.error.output.statusCode !== 401
-        ) {
-          await delay(10000);
-          RobinPair();
+        } 
+        
+        else if (connection === "close") {
+          let reason = lastDisconnect?.error?.output?.statusCode;
+          console.log(`Connection closed. Reason Code: ${reason}`);
+          
+          // 401 (Logged out) නොවන ඕනෑම අවස්ථාවක නැවත උත්සාහ කරන්න
+          if (reason !== 401) {
+            // මෙහිදී නැවත RobinPair() call කිරීම කළ හැක (විකල්පයි)
+          }
         }
       });
+
     } catch (err) {
-      console.log("Service Error:", err);
-      RobinPair();
+      console.error("RobinPair Main Error:", err);
+      removeFile(sessionPath);
+      if (!res.headersSent) {
+        res.status(500).send({ error: "Service Error" });
+      }
     }
   }
+
   return await RobinPair();
 });
 
